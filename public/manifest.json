@@ -1,0 +1,17 @@
+{
+  "short_name": "Baraka POS",
+  "name": "Baraka Savdo — Qishloq Do'konlari Tizimi",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#047857",
+  "theme_color": "#047857",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "lang": "uz"
+}

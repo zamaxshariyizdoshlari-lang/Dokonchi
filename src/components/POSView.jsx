@@ -1,0 +1,597 @@
+import React, { useState } from 'react';
+import {
+  Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote,
+  BookOpen, Sparkles, UserCheck, CheckCircle2, RotateCcw, AlertTriangle,
+  Camera, Mic, Calculator, ShieldAlert
+} from 'lucide-react';
+import { formatMoney } from '../utils/storage';
+
+export default function POSView({
+  products = [],
+  customers = [],
+  onCompleteSale,
+  onOpenCustomerModal,
+  onOpenBarcodeScanner,
+  onOpenVoiceAssistant,
+  onOpenCalculator,
+  onOpenCashPaymentModal,
+  cart = [],
+  setCart = () => {}
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [allowOverlimit, setAllowOverlimit] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [paymentStep, setPaymentStep] = useState(null); // null, 'debt-confirm'
+
+  // Categories
+  const categories = ['all', ...Array.from(new Set(products.map((p) => p.category)))];
+
+  // Filtered products
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.barcode && p.barcode.includes(searchTerm));
+    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
+    return matchesSearch && matchesCat;
+  });
+
+  // Cart operations
+  const addToCart = (product) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          costPrice: product.costPrice || 0,
+          unit: product.unit,
+          quantity: 1
+        }
+      ];
+    });
+  };
+
+  const updateQuantity = (id, delta) => {
+    setCart((prev) =>
+      prev
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean)
+    );
+  };
+
+  const removeFromCart = (id) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    setSelectedCustomerId('');
+    setPaymentStep(null);
+  };
+
+  // Add custom unlisted item
+  const handleAddCustomItem = (e) => {
+    e.preventDefault();
+    if (!customItemPrice || isNaN(customItemPrice)) return;
+    const priceNum = parseFloat(customItemPrice);
+    const newItem = {
+      id: `custom-${Date.now()}`,
+      name: customItemName.trim() || 'Boshqa tovar',
+      price: priceNum,
+      costPrice: priceNum * 0.85, // estimated
+      unit: 'dona',
+      quantity: 1
+    };
+    setCart((prev) => [...prev, newItem]);
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setShowCustomModal(false);
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Complete Checkout
+  const handleCheckout = (paymentMethod) => {
+    if (cart.length === 0) return;
+
+    if (paymentMethod === 'debt') {
+      if (!selectedCustomerId) {
+        setPaymentStep('debt-confirm');
+        return;
+      }
+
+      const customer = customers.find((c) => c.id === selectedCustomerId);
+      onCompleteSale({
+        cart,
+        total: cartTotal,
+        paymentMethod: 'debt',
+        customer: customer
+      });
+      clearCart();
+      return;
+    }
+
+    // Cash or Card
+    onCompleteSale({
+      cart,
+      total: cartTotal,
+      paymentMethod,
+      customer: null
+    });
+    clearCart();
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* LEFT COLUMN: Products Grid & Quick Buttons (7 or 8 cols) */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+          
+          {/* Top Bar: Search, Scanner, Mic, Calculator, and Custom Item */}
+          <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
+            
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Tovarni qidirish (nomi yoki shtrix-kod)..."
+                className="w-full pl-11 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-base font-medium"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 bg-slate-200 rounded-full w-5 h-5 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Quick Helper Tools (Scanner, Mic, Calculator) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+              
+              {/* 1. Barcode Camera Scanner */}
+              <button
+                onClick={onOpenBarcodeScanner}
+                title="Kamera orqali shtrix-kod skaneri"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <Camera className="w-4 h-4 text-emerald-600" />
+                <span className="hidden sm:inline">Skaner</span>
+              </button>
+
+              {/* 4. Voice Assistant Mic */}
+              <button
+                onClick={onOpenVoiceAssistant}
+                title="Ovoz bilan tovar/qarz yozish"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <Mic className="w-4 h-4 text-rose-600" />
+                <span className="hidden sm:inline">Ovozli</span>
+              </button>
+
+              {/* 6. Calculator */}
+              <button
+                onClick={onOpenCalculator}
+                title="Kassa Kalkulyatori"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <Calculator className="w-4 h-4 text-sky-600" />
+                <span className="hidden sm:inline">Kalkulyator</span>
+              </button>
+
+              {/* Custom Item */}
+              <button
+                onClick={() => setShowCustomModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4 text-amber-600 stroke-[3]" />
+                <span className="hidden xl:inline">Roʻyxatda yoʻq</span>
+              </button>
+
+            </div>
+
+          </div>
+
+          {/* Category Chips */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  selectedCategory === cat
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {cat === 'all' ? 'Barcha tovarlar' : cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Products Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {filteredProducts.map((product) => {
+              const inCart = cart.find((item) => item.id === product.id);
+              const isLow = product.stock <= product.minStock;
+
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  className={`bg-white rounded-2xl p-3 sm:p-4 border transition-all cursor-pointer select-none flex flex-col justify-between active:scale-[0.98] shadow-xs hover:shadow-md ${
+                    inCart
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
+                      : 'border-slate-200 hover:border-emerald-300'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-1 mb-1">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        {product.unit}
+                      </span>
+                      {isLow && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-700">
+                          Qoldiq: {product.stock}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2">
+                      {product.name}
+                    </h3>
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-emerald-700 font-extrabold text-sm sm:text-base">
+                        {formatMoney(product.price)}
+                      </p>
+                    </div>
+
+                    {inCart ? (
+                      <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
+                        {inCart.quantity}
+                      </span>
+                    ) : (
+                      <span className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-emerald-600 group-hover:text-white font-bold text-xs flex items-center justify-center transition">
+                        +
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+                <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                <p className="text-slate-600 font-medium">Bunday tovar topilmadi</p>
+                <button
+                  onClick={() => setShowCustomModal(true)}
+                  className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-sm"
+                >
+                  Yangi tovar sifatida kiritish
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Cart & Checkout (4 or 5 cols) */}
+        <div className="lg:col-span-5 xl:col-span-4 sticky top-36">
+          <div className="bg-white rounded-3xl shadow-md border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-160px)] min-h-[560px]">
+            
+            {/* Cart Header */}
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-400" />
+                <h2 className="font-bold text-base sm:text-lg text-white m-0">Savatdagi tovarlar</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-xs font-bold rounded-lg">
+                  {totalItemsCount} ta
+                </span>
+                {cart.length > 0 && (
+                  <button
+                    onClick={clearCart}
+                    title="Savatni tozalash"
+                    className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Cart Items List */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 divide-y divide-slate-100">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                    <ShoppingBag className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <p className="font-bold text-slate-600 text-base mb-1">Savat boʻsh</p>
+                  <p className="text-xs text-slate-400">
+                    Chap tarafdagi tovarlarni bosib, savatga qoʻshing
+                  </p>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <h4 className="font-bold text-slate-900 text-sm truncate">{item.name}</h4>
+                      <p className="text-xs text-slate-500">
+                        {formatMoney(item.price)} × {item.quantity} {item.unit}
+                      </p>
+                    </div>
+
+                    {/* Quantity controls */}
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-rose-50 hover:text-rose-600 active:scale-95 font-bold text-sm"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-6 text-center font-extrabold text-xs text-slate-800">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 active:scale-95 font-bold text-sm"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="text-right w-20">
+                      <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                        {formatMoney(item.price * item.quantity)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Bottom Checkout Panel */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+              
+              {/* Total Summary */}
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-bold text-slate-600">Jami toʻlov:</span>
+                <span className="text-2xl font-black text-slate-900 tracking-tight">
+                  {formatMoney(cartTotal)}
+                </span>
+              </div>
+
+              {/* Debt Customer Selector Mode if triggered */}
+              {paymentStep === 'debt-confirm' && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-700" />
+                      Nasiyador mahalla aʼzosini tanlang:
+                    </span>
+                    <button
+                      onClick={() => setPaymentStep(null)}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-800"
+                    >
+                      Bekor qilish
+                    </button>
+                  </div>
+
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    className="w-full p-2 bg-white border border-amber-300 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    <option value="">-- Roʻyxatdan tanlang --</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({formatMoney(c.balance)} qarzi bor)
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Credit Limit Exceeded Warning */}
+                  {(() => {
+                    const selectedCust = customers.find((c) => c.id === selectedCustomerId);
+                    if (!selectedCust) return null;
+                    const newTotalDebt = (selectedCust.balance || 0) + cartTotal;
+                    const limit = selectedCust.creditLimit || 500000;
+                    const isExceeded = newTotalDebt > limit;
+
+                    if (isExceeded) {
+                      return (
+                        <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl space-y-1.5 text-xs text-rose-900 animate-pulse">
+                          <div className="flex items-start gap-1.5 font-bold">
+                            <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <span>⚠️ Qarz limiti oshib ketmoqda!</span>
+                          </div>
+                          <p className="text-[11px] text-rose-700">
+                            Limit: <strong>{formatMoney(limit)}</strong> • Yangi qarz: <strong className="text-rose-900">{formatMoney(newTotalDebt)}</strong>
+                          </p>
+                          <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800 cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={allowOverlimit}
+                              onChange={(e) => setAllowOverlimit(e.target.checked)}
+                              className="rounded text-rose-600 focus:ring-rose-500"
+                            />
+                            <span>Shunga qaramay qarzga ruxsat berish</span>
+                          </label>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      onClick={onOpenCustomerModal}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 underline"
+                    >
+                      + Yangi odam qoʻshish
+                    </button>
+
+                    {(() => {
+                      const selectedCust = customers.find((c) => c.id === selectedCustomerId);
+                      const newTotalDebt = (selectedCust?.balance || 0) + cartTotal;
+                      const limit = selectedCust?.creditLimit || 500000;
+                      const isExceeded = selectedCust && newTotalDebt > limit;
+                      const canSubmit = selectedCustomerId && (!isExceeded || allowOverlimit);
+
+                      return (
+                        <button
+                          disabled={!canSubmit}
+                          onClick={() => handleCheckout('debt')}
+                          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition shadow-sm ${
+                            canSubmit
+                              ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 cursor-pointer active:scale-95'
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Daftarga yozish ✓
+                        </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Main 3 Action Buttons */}
+              {paymentStep !== 'debt-confirm' && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  
+                  {/* Cash (Opens Sdacha / Qaytim Calculator) */}
+                  <button
+                    disabled={cart.length === 0}
+                    onClick={() => {
+                      if (onOpenCashPaymentModal) {
+                        onOpenCashPaymentModal();
+                      } else {
+                        handleCheckout('cash');
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-emerald-600/20"
+                  >
+                    <Banknote className="w-5 h-5 mb-1" />
+                    <span className="text-xs font-extrabold">Naqd (Qaytim)</span>
+                  </button>
+
+                  {/* Card */}
+                  <button
+                    disabled={cart.length === 0}
+                    onClick={() => handleCheckout('card')}
+                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-sky-600/20"
+                  >
+                    <CreditCard className="w-5 h-5 mb-1" />
+                    <span className="text-xs font-extrabold">Karta</span>
+                  </button>
+
+                  {/* Debt / Nasiya (Highlighted with special amber warm color) */}
+                  <button
+                    disabled={cart.length === 0}
+                    onClick={() => setPaymentStep('debt-confirm')}
+                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-amber-500/25 border border-amber-600/30"
+                  >
+                    <BookOpen className="w-5 h-5 mb-1" />
+                    <span className="text-xs font-extrabold">Nasiya (Qarz)</span>
+                  </button>
+
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal for adding unlisted custom product */}
+      {showCustomModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">
+              Roʻyxatda yoʻq tovar kiritish
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Masalan: qovun, tarvuz, yangi sabzavot yoki maxsus buyurtma
+            </p>
+
+            <form onSubmit={handleAddCustomItem} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tovar nomi (ixtiyoriy)
+                </label>
+                <input
+                  type="text"
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  placeholder="Masalan: Tarvuz yoki Qaymoq"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Narxi (soʻmda) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  autoFocus
+                  value={customItemPrice}
+                  onChange={(e) => setCustomItemPrice(e.target.value)}
+                  placeholder="Masalan: 15000"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-lg font-black text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomModal(false)}
+                  className="flex-1 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-100"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md"
+                >
+                  Savatga qoʻshish
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
