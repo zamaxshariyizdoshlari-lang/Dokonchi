@@ -13,7 +13,9 @@ export default function DebtBookView({
   onRecordPayment,
   onOpenPensionCalendar,
   onOpenQRCard,
-  onOpenInstallments
+  onOpenInstallments,
+  onOpenDebtContract,
+  onUpdateCustomer
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('hasDebt'); // 'all', 'hasDebt', 'overdue'
@@ -375,6 +377,18 @@ export default function DebtBookView({
                     <Calendar className="w-4 h-4 text-purple-200" />
                     <span>📅 Boʻlib toʻlash ({activeCustomer.installmentPlans?.length || 0})</span>
                   </button>
+
+                  {/* Feature: Legal Debt Contract / Akt Sverki */}
+                  {activeCustomer.balance > 0 && (
+                    <button
+                      onClick={() => onOpenDebtContract && onOpenDebtContract(activeCustomer)}
+                      className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs sm:text-sm rounded-xl transition active:scale-95 shadow-sm"
+                      title="Qarz solishtirma dalolatnomasi va imzo tilxati (Akt Sverki)"
+                    >
+                      <FileText className="w-4 h-4 text-amber-400" />
+                      <span>📜 Akt Sverki (Tilxat)</span>
+                    </button>
+                  )}
 
                   {/* Send Telegram reminder button */}
                   {activeCustomer.balance > 0 && (

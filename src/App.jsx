@@ -21,6 +21,12 @@ import CashierCalculator from './components/CashierCalculator';
 import PensionCalendarModal from './components/PensionCalendarModal';
 import CustomerQRCardModal from './components/CustomerQRCardModal';
 import InstallmentsModal from './components/InstallmentsModal';
+import SplitPaymentModal from './components/SplitPaymentModal';
+import ReturnProductModal from './components/ReturnProductModal';
+import DebtContractModal from './components/DebtContractModal';
+import StockAuditModal from './components/StockAuditModal';
+import SmsGatewayModal from './components/SmsGatewayModal';
+import LicenseModal from './components/LicenseModal';
 import {
   getStorageData,
   saveProducts,
@@ -75,6 +81,12 @@ export default function App() {
   const [selectedPOSCustomer, setSelectedPOSCustomer] = useState(null);
   const [qrCardCustomer, setQrCardCustomer] = useState(null);
   const [installmentsCustomer, setInstallmentsCustomer] = useState(null);
+  const [isSplitPaymentOpen, setIsSplitPaymentOpen] = useState(false);
+  const [isReturnProductOpen, setIsReturnProductOpen] = useState(false);
+  const [debtContractCustomer, setDebtContractCustomer] = useState(null);
+  const [isStockAuditOpen, setIsStockAuditOpen] = useState(false);
+  const [isSmsGatewayOpen, setIsSmsGatewayOpen] = useState(false);
+  const [isLicenseOpen, setIsLicenseOpen] = useState(false);
 
   // PWA install prompt handler
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -267,6 +279,185 @@ export default function App() {
       receivedAmount,
       changeAmount
     });
+  };
+
+  // Handler: Split payment (Aralash toʻlov)
+  const handleSplitPayment = ({ cashAmount, cardAmount, debtAmount, customer, receivedAmount, changeAmount }) => {
+    const timestamp = new Date().toLocaleString('uz-UZ', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const total = cashAmount + cardAmount + debtAmount;
+
+    // 1. Deduct stock
+    setProducts((prev) =>
+      prev.map((p) => {
+        const cartItem = cart.find((item) => item.id === p.id);
+        if (cartItem) {
+          const newStock = Math.max(0, p.stock - cartItem.quantity);
+          return { ...p, stock: newStock };
+        }
+        return p;
+      })
+    );
+
+    let updatedCustomer = null;
+
+    // 2. If debt portion > 0, update customer
+    if (debtAmount > 0 && customer) {
+      const itemsSummary = cart.map((i) => `${i.name} (${i.quantity} ${i.unit})`).join(', ');
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customer.id) {
+            const newBal = (c.balance || 0) + debtAmount;
+            const newHist = [
+              {
+                id: `hist-${Date.now()}`,
+                date: timestamp,
+                type: 'debt',
+                amount: debtAmount,
+                items: itemsSummary,
+                description: `Aralash xarid: qarz qismi (${formatMoney(debtAmount)})`
+              },
+              ...(c.history || [])
+            ];
+            updatedCustomer = { ...c, balance: newBal, history: newHist };
+            return updatedCustomer;
+          }
+          return c;
+        })
+      );
+    }
+
+    // 3. Add transaction
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      date: timestamp,
+      itemsCount: cart.reduce((sum, i) => sum + i.quantity, 0),
+      total,
+      paymentMethod: 'split',
+      splitDetails: { cashAmount, cardAmount, debtAmount },
+      customerName: customer ? `${customer.name} (Aralash toʻlov)` : 'Aralash savdo',
+      customerId: customer?.id || null,
+      itemsSummary: cart.map((i) => `${i.name} × ${i.quantity}`).join(', '),
+      cart: [...cart],
+      receivedAmount,
+      changeAmount
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+
+    // 4. Open Receipt Modal
+    setReceiptData({
+      cart: [...cart],
+      total,
+      paymentMethod: 'split',
+      customer: updatedCustomer || customer,
+      timestamp,
+      receivedAmount,
+      changeAmount,
+      splitDetails: { cashAmount, cardAmount, debtAmount }
+    });
+
+    setCart([]);
+    setIsSplitPaymentOpen(false);
+  };
+
+  // Handler: Return products (Vozvrat)
+  const handleProcessReturn = ({ originalTransaction, items, totalRefund, refundMethod, reason, customerId }) => {
+    const timestamp = new Date().toLocaleString('uz-UZ', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // 1. Restore stocks
+    setProducts((prev) =>
+      prev.map((p) => {
+        const retItem = items.find((item) => item.product.id === p.id);
+        if (retItem) {
+          return { ...p, stock: (p.stock || 0) + retItem.quantity };
+        }
+        return p;
+      })
+    );
+
+    // 2. If debt_deduct, reduce customer balance
+    if (refundMethod === 'debt_deduct' && customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId) {
+            const newBal = Math.max(0, (c.balance || 0) - totalRefund);
+            const newHist = [
+              {
+                id: `hist-${Date.now()}`,
+                date: timestamp,
+                type: 'payment',
+                amount: totalRefund,
+                description: `Vozvrat qarzdan ayirildi: ${reason || ''}`
+              },
+              ...(c.history || [])
+            ];
+            return { ...c, balance: newBal, history: newHist };
+          }
+          return c;
+        })
+      );
+    }
+
+    // 3. Add negative return transaction
+    const returnTx = {
+      id: `ret-${Date.now()}`,
+      date: timestamp,
+      itemsCount: items.reduce((sum, i) => sum + i.quantity, 0),
+      total: -totalRefund,
+      paymentMethod: refundMethod,
+      customerName: `${originalTransaction.customerName || 'Mijoz'} (VOZVRAT)`,
+      customerId: customerId,
+      itemsSummary: `Qaytarildi: ${items.map((i) => `${i.product.name} × ${i.quantity}`).join(', ')}`,
+      cart: items.map((i) => ({ ...i.product, quantity: i.quantity })),
+      isReturn: true,
+      reason
+    };
+
+    setTransactions((prev) => [returnTx, ...prev]);
+    alert(`✓ Tovar muvaffaqiyatli qaytarildi! Qaytarilgan summa: ${formatMoney(totalRefund)}`);
+  };
+
+  // Handler: Apply Stock Audit (Reviziya)
+  const handleApplyAudit = ({ updates, totalShortageSum, totalSurplusSum, totalDiscrepantCount, date }) => {
+    // 1. Update product stocks
+    setProducts((prev) =>
+      prev.map((p) => {
+        const update = updates.find((u) => u.productId === p.id);
+        if (update) {
+          return { ...p, stock: update.newStock };
+        }
+        return p;
+      })
+    );
+
+    // 2. If shortage, record write-off
+    if (totalShortageSum > 0) {
+      const auditWriteOff = {
+        id: `wo-audit-${Date.now()}`,
+        date: date || new Date().toLocaleString('uz-UZ'),
+        productName: `Reviziya kamomadi (${totalDiscrepantCount} ta tovar)`,
+        quantity: totalDiscrepantCount,
+        unit: 'xil',
+        costLoss: totalShortageSum,
+        reason: 'Inventarizatsiya / Reviziya natijasida aniqlangan kamomad'
+      };
+      setWriteOffs((prev) => [auditWriteOff, ...prev]);
+    }
+
+    alert(`✓ Reviziya tasdiqlandi! ${updates.length} ta tovar qoldiqlari yangilandi.`);
   };
 
   // Handler: Customer pays their debt in Debt Book
@@ -489,6 +680,9 @@ export default function App() {
         onOpenNewCustomer={() => setIsCustomerModalOpen(true)}
         onOpenSupplierOrder={() => setIsSupplierOrderOpen(true)}
         onOpenTelegramBot={() => setIsTelegramBotOpen(true)}
+        onOpenSmsGateway={() => setIsSmsGatewayOpen(true)}
+        onOpenStockAudit={() => setIsStockAuditOpen(true)}
+        onOpenLicense={() => setIsLicenseOpen(true)}
         onInstallPWA={handleInstallPWA}
         onOpenAdminPin={() => setIsAdminPinOpen(true)}
         onSwitchToCashier={() => {
@@ -523,6 +717,8 @@ export default function App() {
             onOpenVoiceAssistant={() => setIsVoiceAssistantOpen(true)}
             onOpenCalculator={() => setIsCalculatorOpen(true)}
             onOpenCashPaymentModal={() => setIsCashPaymentModalOpen(true)}
+            onOpenSplitPayment={() => setIsSplitPaymentOpen(true)}
+            onOpenReturnProduct={() => setIsReturnProductOpen(true)}
           />
         )}
 
@@ -535,6 +731,8 @@ export default function App() {
             onOpenPensionCalendar={() => setIsPensionCalendarOpen(true)}
             onOpenQRCard={(customer) => setQrCardCustomer(customer)}
             onOpenInstallments={(customer) => setInstallmentsCustomer(customer)}
+            onOpenDebtContract={(customer) => setDebtContractCustomer(customer)}
+            onUpdateCustomer={handleUpdateCustomer}
           />
         )}
 
@@ -731,6 +929,58 @@ export default function App() {
         settings={settings}
         onUpdateCustomer={handleUpdateCustomer}
         onRecordPayment={handleRecordPayment}
+      />
+
+      {/* Split Payment (Aralash to'lov) Modal */}
+      <SplitPaymentModal
+        isOpen={isSplitPaymentOpen}
+        onClose={() => setIsSplitPaymentOpen(false)}
+        cartTotal={cart.reduce((s, i) => s + i.price * i.quantity, 0)}
+        customers={customers}
+        initialCustomer={selectedPOSCustomer}
+        onConfirmSplitPayment={handleSplitPayment}
+      />
+
+      {/* Return Products (Vozvrat) Modal */}
+      <ReturnProductModal
+        isOpen={isReturnProductOpen}
+        onClose={() => setIsReturnProductOpen(false)}
+        transactions={transactions}
+        products={products}
+        customers={customers}
+        onProcessReturn={handleProcessReturn}
+      />
+
+      {/* Legal Debt Contract / Akt Sverki Modal */}
+      <DebtContractModal
+        isOpen={Boolean(debtContractCustomer)}
+        onClose={() => setDebtContractCustomer(null)}
+        customer={debtContractCustomer}
+        settings={settings}
+      />
+
+      {/* Inventory & Stock Audit (Reviziya) Modal */}
+      <StockAuditModal
+        isOpen={isStockAuditOpen}
+        onClose={() => setIsStockAuditOpen(false)}
+        products={products}
+        onApplyAudit={handleApplyAudit}
+      />
+
+      {/* SMS Gateway (Eskiz.uz) Modal */}
+      <SmsGatewayModal
+        isOpen={isSmsGatewayOpen}
+        onClose={() => setIsSmsGatewayOpen(false)}
+        settings={settings}
+        onSaveSettings={setSettings}
+      />
+
+      {/* Commercial License & Activation Modal */}
+      <LicenseModal
+        isOpen={isLicenseOpen}
+        onClose={() => setIsLicenseOpen(false)}
+        settings={settings}
+        onSaveSettings={setSettings}
       />
     </div>
   );

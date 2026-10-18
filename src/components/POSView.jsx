@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote,
   BookOpen, Sparkles, UserCheck, CheckCircle2, RotateCcw, AlertTriangle,
   Camera, Mic, Calculator, ShieldAlert, DollarSign, ArrowRightLeft,
-  X, Check, User
+  X, Check, User, PauseCircle, PlayCircle, Percent, Layers, Scale
 } from 'lucide-react';
 import { formatMoney } from '../utils/storage';
 
@@ -16,6 +16,8 @@ export default function POSView({
   onOpenVoiceAssistant,
   onOpenCalculator,
   onOpenCashPaymentModal,
+  onOpenSplitPayment,
+  onOpenReturnProduct,
   cart = [],
   setCart = () => {},
   selectedCustomerId: externalCustomerId,
@@ -38,6 +40,24 @@ export default function POSView({
   const [usdAmount, setUsdAmount] = useState('');
   const [usdItemTitle, setUsdItemTitle] = useState('');
 
+  // Hold Carts (Pauza / Kutish) State
+  const [heldCarts, setHeldCarts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('baraka_held_carts') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showHeldCartsModal, setShowHeldCartsModal] = useState(false);
+
+  // Discount State
+  const [discountPercent, setDiscountPercent] = useState(0); // 0, 3, 5, 10%
+
+  // Save held carts
+  useEffect(() => {
+    localStorage.setItem('baraka_held_carts', JSON.stringify(heldCarts));
+  }, [heldCarts]);
+
   // Handle controlled / uncontrolled customer selection
   const selectedCustomerId = externalCustomerId !== undefined ? externalCustomerId : internalCustomerId;
   const setSelectedCustomerId = externalSetSelectedCustomerId || setInternalCustomerId;
@@ -47,6 +67,37 @@ export default function POSView({
 
   // Categories
   const categories = ['all', ...Array.from(new Set(products.map((p) => p.category)))];
+
+  // Scale Barcode Parser: (21 PPPPP WWWWW C)
+  const handleScaleBarcodeDetection = (code) => {
+    if (!code || typeof code !== 'string') return false;
+    const trimmed = code.trim();
+    if ((trimmed.startsWith('21') || trimmed.startsWith('22')) && trimmed.length === 13) {
+      const itemCode = trimmed.slice(2, 7);
+      const weightGrams = parseInt(trimmed.slice(7, 12), 10);
+      const weightKg = weightGrams / 1000;
+
+      const matchedProduct = products.find(
+        (p) => p.barcode && (p.barcode.includes(itemCode) || p.barcode === itemCode)
+      );
+
+      if (matchedProduct && weightKg > 0) {
+        addToCart(matchedProduct, weightKg);
+        setSearchTerm('');
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Search input change handler
+  const handleSearchChange = (val) => {
+    setSearchTerm(val);
+    // Check if scale barcode was pasted or scanned
+    if (val.length === 13 && (val.startsWith('21') || val.startsWith('22'))) {
+      handleScaleBarcodeDetection(val);
+    }
+  };
 
   // Filtered products
   const filteredProducts = products.filter((p) => {
@@ -58,12 +109,14 @@ export default function POSView({
   });
 
   // Cart operations
-  const addToCart = (product) => {
+  const addToCart = (product, quantity = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id
+            ? { ...item, quantity: Math.round((item.quantity + quantity) * 1000) / 1000 }
+            : item
         );
       }
       return [
@@ -75,7 +128,7 @@ export default function POSView({
           costPrice: product.costPrice || 0,
           unit: product.unit || 'dona',
           image: product.image || '📦',
-          quantity: 1
+          quantity: quantity
         }
       ];
     });
@@ -86,7 +139,7 @@ export default function POSView({
       prev
         .map((item) => {
           if (item.id === id) {
-            const newQty = item.quantity + delta;
+            const newQty = Math.round((item.quantity + delta) * 1000) / 1000;
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
           return item;
@@ -103,6 +156,36 @@ export default function POSView({
     setCart([]);
     setSelectedCustomerId('');
     setPaymentStep(null);
+    setDiscountPercent(0);
+  };
+
+  // Hold current cart
+  const handleHoldCurrentCart = () => {
+    if (cart.length === 0) return;
+    const newHold = {
+      id: `hold-${Date.now()}`,
+      time: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+      cart: [...cart],
+      total: grossTotal,
+      customer: activeCustomer,
+      itemsCount: totalItemsCount
+    };
+    setHeldCarts((prev) => [newHold, ...prev]);
+    clearCart();
+  };
+
+  // Restore held cart
+  const handleRestoreHeldCart = (heldItem) => {
+    setCart(heldItem.cart);
+    if (heldItem.customer) {
+      setSelectedCustomerId(heldItem.customer.id);
+    }
+    setHeldCarts((prev) => prev.filter((h) => h.id !== heldItem.id));
+    setShowHeldCartsModal(false);
+  };
+
+  const handleDeleteHeldCart = (heldId) => {
+    setHeldCarts((prev) => prev.filter((h) => h.id !== heldId));
   };
 
   // Add custom unlisted item
@@ -158,9 +241,12 @@ export default function POSView({
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Financial calculations
+  const grossTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotalUsd = (cartTotal / usdRate).toFixed(2);
+  const discountAmount = discountPercent > 0 ? Math.round((grossTotal * discountPercent) / 100 / 500) * 500 : 0;
+  const netTotal = Math.max(0, grossTotal - discountAmount);
+  const cartTotalUsd = (netTotal / usdRate).toFixed(2);
 
   // Complete Checkout
   const handleCheckout = (paymentMethod) => {
@@ -175,7 +261,7 @@ export default function POSView({
       const customer = customers.find((c) => c.id === selectedCustomerId);
       onCompleteSale({
         cart,
-        total: cartTotal,
+        total: netTotal,
         paymentMethod: 'debt',
         customer: customer
       });
@@ -186,7 +272,7 @@ export default function POSView({
     // Cash or Card
     onCompleteSale({
       cart,
-      total: cartTotal,
+      total: netTotal,
       paymentMethod,
       customer: activeCustomer || null
     });
@@ -200,7 +286,7 @@ export default function POSView({
         {/* LEFT COLUMN: Products Grid & Quick Buttons (7 or 8 cols) */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-4">
           
-          {/* Top Bar: Search, Scanner, Mic, Calculator, USD, and Custom Item */}
+          {/* Top Bar: Search, Scanner, Mic, Calculator, USD, Vozvrat, and Custom Item */}
           <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
             
             {/* Search Input */}
@@ -209,8 +295,8 @@ export default function POSView({
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tovarni qidirish (nomi yoki shtrix-kod)..."
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Tovarni qidirish yoki tarozi kodi (21...)..."
                 className="w-full pl-11 pr-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-base font-medium"
               />
               {searchTerm && (
@@ -256,10 +342,20 @@ export default function POSView({
                 <span className="hidden sm:inline">Kalkulyator</span>
               </button>
 
+              {/* Vozvrat (Tovar qaytarish) */}
+              <button
+                onClick={onOpenReturnProduct}
+                title="Tovarni qaytarib olish (Vozvrat)"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <RotateCcw className="w-4 h-4 text-rose-700" />
+                <span className="hidden sm:inline">Vozvrat</span>
+              </button>
+
               {/* USD Currency Converter Widget */}
               <button
                 onClick={() => setShowUsdModal(true)}
-                title="Valyuta konverteri (Un, yem, koʻmir narxlarini $ da hisoblash)"
+                title="Valyuta konverteri"
                 className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
                 <DollarSign className="w-4 h-4 text-teal-700" />
@@ -305,7 +401,7 @@ export default function POSView({
               return (
                 <div
                   key={product.id}
-                  onClick={() => addToCart(product)}
+                  onClick={() => addToCart(product, 1)}
                   className={`group bg-white rounded-2xl p-3 sm:p-4 border transition-all cursor-pointer select-none flex flex-col justify-between active:scale-[0.98] shadow-xs hover:shadow-md ${
                     inCart
                       ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
@@ -377,15 +473,38 @@ export default function POSView({
           <div className="bg-white rounded-3xl shadow-md border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-160px)] min-h-[560px]">
             
             {/* Cart Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-3.5 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-400" />
-                <h2 className="font-bold text-base sm:text-lg text-white m-0">Savatdagi tovarlar</h2>
+                <h2 className="font-bold text-sm sm:text-base text-white m-0">Savatdagi tovarlar</h2>
               </div>
-              <div className="flex items-center gap-2">
+              
+              <div className="flex items-center gap-1.5">
+                {/* Hold/Suspend Cart Button */}
+                <button
+                  disabled={cart.length === 0}
+                  onClick={handleHoldCurrentCart}
+                  title="Savatni kutishga qoʻyish (Pauza)"
+                  className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-amber-400 transition disabled:opacity-30"
+                >
+                  <PauseCircle className="w-5 h-5" />
+                </button>
+
+                {/* Held Carts Badge Trigger */}
+                {heldCarts.length > 0 && (
+                  <button
+                    onClick={() => setShowHeldCartsModal(true)}
+                    className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-lg transition animate-pulse"
+                    title="Kutayotgan savatlar"
+                  >
+                    Kutishda: {heldCarts.length}
+                  </button>
+                )}
+
                 <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-xs font-bold rounded-lg">
                   {totalItemsCount} ta
                 </span>
+
                 {cart.length > 0 && (
                   <button
                     onClick={clearCart}
@@ -400,7 +519,7 @@ export default function POSView({
 
             {/* Attached / Scanned Customer Banner */}
             {activeCustomer && (
-              <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
+              <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 text-amber-700 shrink-0" />
@@ -455,14 +574,14 @@ export default function POSView({
                     </div>
 
                     {/* Quantity controls */}
-                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                       <button
                         onClick={() => updateQuantity(item.id, -1)}
                         className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-rose-50 hover:text-rose-600 active:scale-95 font-bold text-sm"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-6 text-center font-extrabold text-xs text-slate-800">
+                      <span className="w-8 text-center font-extrabold text-xs text-slate-800">
                         {item.quantity}
                       </span>
                       <button
@@ -484,18 +603,49 @@ export default function POSView({
             </div>
 
             {/* Bottom Checkout Panel */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5">
               
+              {/* Discount Selector */}
+              {cart.length > 0 && (
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-200">
+                  <span className="font-bold text-slate-600 flex items-center gap-1">
+                    <Percent className="w-3.5 h-3.5 text-rose-600" />
+                    Chegirma:
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {[0, 3, 5, 10].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setDiscountPercent(pct)}
+                        className={`px-2 py-0.5 rounded-lg font-bold text-[11px] transition ${
+                          discountPercent === pct
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                        }`}
+                      >
+                        {pct === 0 ? 'Yoʻq' : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Total Summary with USD Equivalent */}
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-sm font-bold text-slate-600">Jami toʻlov:</span>
-                  <span className="block text-[11px] font-black text-teal-700 mt-0.5">
-                    ≈ ${cartTotalUsd} USD (1$ = {Number(usdRate).toLocaleString()} soʻm)
+                  <span className="text-xs font-bold text-slate-600">Jami toʻlov:</span>
+                  {discountAmount > 0 && (
+                    <span className="block text-[10px] font-bold text-rose-600 line-through">
+                      {formatMoney(grossTotal)} (-{formatMoney(discountAmount)})
+                    </span>
+                  )}
+                  <span className="block text-[10px] font-black text-teal-700">
+                    ≈ ${cartTotalUsd} USD
                   </span>
                 </div>
                 <span className="text-2xl font-black text-slate-900 tracking-tight">
-                  {formatMoney(cartTotal)}
+                  {formatMoney(netTotal)}
                 </span>
               </div>
 
@@ -532,7 +682,7 @@ export default function POSView({
                   {(() => {
                     const selectedCust = customers.find((c) => c.id === selectedCustomerId);
                     if (!selectedCust) return null;
-                    const newTotalDebt = (selectedCust.balance || 0) + cartTotal;
+                    const newTotalDebt = (selectedCust.balance || 0) + netTotal;
                     const limit = selectedCust.creditLimit || 500000;
                     const isExceeded = newTotalDebt > limit;
 
@@ -571,7 +721,7 @@ export default function POSView({
 
                     {(() => {
                       const selectedCust = customers.find((c) => c.id === selectedCustomerId);
-                      const newTotalDebt = (selectedCust?.balance || 0) + cartTotal;
+                      const newTotalDebt = (selectedCust?.balance || 0) + netTotal;
                       const limit = selectedCust?.creditLimit || 500000;
                       const isExceeded = selectedCust && newTotalDebt > limit;
                       const canSubmit = selectedCustomerId && (!isExceeded || allowOverlimit);
@@ -594,11 +744,11 @@ export default function POSView({
                 </div>
               )}
 
-              {/* Main 3 Action Buttons */}
+              {/* Main 4 Action Buttons: Naqd, Karta, Nasiya, and Aralash */}
               {paymentStep !== 'debt-confirm' && (
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-4 gap-1.5 pt-1">
                   
-                  {/* Cash (Opens Sdacha / Qaytim Calculator) */}
+                  {/* Cash */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => {
@@ -608,30 +758,41 @@ export default function POSView({
                         handleCheckout('cash');
                       }
                     }}
-                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-emerald-600/20"
+                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-emerald-600/20"
                   >
-                    <Banknote className="w-5 h-5 mb-1" />
-                    <span className="text-xs font-extrabold">Naqd (Qaytim)</span>
+                    <Banknote className="w-4 h-4 mb-1" />
+                    <span className="text-[11px] font-extrabold">Naqd</span>
                   </button>
 
                   {/* Card */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => handleCheckout('card')}
-                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-sky-600/20"
+                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-sky-600/20"
                   >
-                    <CreditCard className="w-5 h-5 mb-1" />
-                    <span className="text-xs font-extrabold">Karta</span>
+                    <CreditCard className="w-4 h-4 mb-1" />
+                    <span className="text-[11px] font-extrabold">Karta</span>
                   </button>
 
                   {/* Debt / Nasiya */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => setPaymentStep('debt-confirm')}
-                    className="flex flex-col items-center justify-center p-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-amber-500/25 border border-amber-600/30"
+                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-amber-500/25"
                   >
-                    <BookOpen className="w-5 h-5 mb-1" />
-                    <span className="text-xs font-extrabold">Nasiya (Qarz)</span>
+                    <BookOpen className="w-4 h-4 mb-1" />
+                    <span className="text-[11px] font-extrabold">Nasiya</span>
+                  </button>
+
+                  {/* Aralash to'lov (Split) */}
+                  <button
+                    disabled={cart.length === 0}
+                    onClick={onOpenSplitPayment}
+                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-purple-600/20"
+                    title="Aralash toʻlov (Naqd + Karta + Qarz)"
+                  >
+                    <Layers className="w-4 h-4 mb-1" />
+                    <span className="text-[11px] font-extrabold">Aralash</span>
                   </button>
 
                 </div>
@@ -703,7 +864,7 @@ export default function POSView({
         </div>
       )}
 
-      {/* Modal 2: USD Currency Converter & Quick Add */}
+      {/* Modal 2: USD Currency Converter */}
       {showUsdModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
@@ -810,7 +971,6 @@ export default function POSView({
                 </div>
               </div>
 
-              {/* Live converted So'm display */}
               {usdAmount && !isNaN(usdAmount) && parseFloat(usdAmount) > 0 && (
                 <div className="p-3 bg-slate-900 text-white rounded-xl text-center space-y-0.5 animate-in fade-in">
                   <span className="text-[10px] text-teal-300 font-bold uppercase tracking-wider block">
@@ -840,6 +1000,83 @@ export default function POSView({
               </div>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Held / Suspended Carts (Pauza qilingan savatlar) */}
+      {showHeldCartsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <PauseCircle className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base m-0">
+                    Kutayotgan savatlar (Pauza)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 m-0">
+                    Boshqa xaridor kelganda vaqtincha saqlangan savatlar
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHeldCartsModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+              {heldCarts.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  Kutishda hech qanday savat yoʻq
+                </div>
+              ) : (
+                heldCarts.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 font-black text-xs text-slate-900 truncate">
+                        <span>{item.customer ? item.customer.name : 'Nomaʼlum xaridor'}</span>
+                        <span className="text-[10px] font-normal text-slate-400">({item.time})</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {item.itemsCount} ta tovar • {formatMoney(item.total)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleRestoreHeldCart(item)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition"
+                      >
+                        Tiklash
+                      </button>
+                      <button
+                        onClick={() => handleDeleteHeldCart(item.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowHeldCartsModal(false)}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+            >
+              Yopish
+            </button>
           </div>
         </div>
       )}

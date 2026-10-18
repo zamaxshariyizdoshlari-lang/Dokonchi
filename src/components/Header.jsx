@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Store, Download, Plus, Wifi, Truck, Bot, Smartphone, Lock, Shield,
-  Clock, Sun, Moon, Sparkles
+  Clock, Sun, Moon, Sparkles, MessageSquare, Key, ClipboardCheck
 } from 'lucide-react';
 import { exportDataBackup } from '../utils/storage';
 
@@ -15,6 +15,9 @@ export default function Header({
   onOpenNewCustomer,
   onOpenSupplierOrder,
   onOpenTelegramBot,
+  onOpenSmsGateway,
+  onOpenStockAudit,
+  onOpenLicense,
   onInstallPWA,
   onOpenAdminPin,
   onSwitchToCashier
@@ -114,6 +117,36 @@ export default function Header({
             >
               <Bot className="w-4 h-4 text-sky-100" />
               <span className="hidden md:inline">Mahalla Boti</span>
+            </button>
+
+            {/* SMS Gateway */}
+            <button
+              onClick={onOpenSmsGateway}
+              title="SMS Xabarnomalar (Eskiz.uz)"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl transition bg-black/15 hover:bg-black/25 border border-white/20"
+            >
+              <MessageSquare className="w-4 h-4 text-sky-300" />
+              <span className="hidden xl:inline">SMS</span>
+            </button>
+
+            {/* Inventory Audit */}
+            <button
+              onClick={onOpenStockAudit}
+              title="Inventarizatsiya va Reviziya (Ombor sanog'i)"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl transition bg-black/15 hover:bg-black/25 border border-white/20"
+            >
+              <ClipboardCheck className="w-4 h-4 text-amber-300" />
+              <span className="hidden xl:inline">Reviziya</span>
+            </button>
+
+            {/* License status */}
+            <button
+              onClick={onOpenLicense}
+              title="Do'kon litsenziyasi va aktivatsiya holati"
+              className="hidden xl:flex items-center gap-1 px-2.5 py-2 text-xs font-black rounded-xl transition bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-300/40 text-emerald-200"
+            >
+              <Key className="w-3.5 h-3.5 text-emerald-300" />
+              <span>PRO</span>
             </button>
 
             {/* PWA Install */}
