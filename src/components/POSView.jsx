@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote,
   BookOpen, Sparkles, UserCheck, CheckCircle2, RotateCcw, AlertTriangle,
-  Camera, Mic, Calculator, ShieldAlert
+  Camera, Mic, Calculator, ShieldAlert, DollarSign, ArrowRightLeft,
+  X, Check, User
 } from 'lucide-react';
 import { formatMoney } from '../utils/storage';
 
@@ -16,16 +17,33 @@ export default function POSView({
   onOpenCalculator,
   onOpenCashPaymentModal,
   cart = [],
-  setCart = () => {}
+  setCart = () => {},
+  selectedCustomerId: externalCustomerId,
+  setSelectedCustomerId: externalSetSelectedCustomerId
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [internalCustomerId, setInternalCustomerId] = useState('');
   const [allowOverlimit, setAllowOverlimit] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [paymentStep, setPaymentStep] = useState(null); // null, 'debt-confirm'
+
+  // USD Currency Converter State
+  const [showUsdModal, setShowUsdModal] = useState(false);
+  const [usdRate, setUsdRate] = useState(12800);
+  const [isEditingRate, setIsEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState('12800');
+  const [usdAmount, setUsdAmount] = useState('');
+  const [usdItemTitle, setUsdItemTitle] = useState('');
+
+  // Handle controlled / uncontrolled customer selection
+  const selectedCustomerId = externalCustomerId !== undefined ? externalCustomerId : internalCustomerId;
+  const setSelectedCustomerId = externalSetSelectedCustomerId || setInternalCustomerId;
+
+  // Selected customer object
+  const activeCustomer = customers.find((c) => c.id === selectedCustomerId) || null;
 
   // Categories
   const categories = ['all', ...Array.from(new Set(products.map((p) => p.category)))];
@@ -55,7 +73,8 @@ export default function POSView({
           name: product.name,
           price: product.price,
           costPrice: product.costPrice || 0,
-          unit: product.unit,
+          unit: product.unit || 'dona',
+          image: product.image || '📦',
           quantity: 1
         }
       ];
@@ -95,8 +114,9 @@ export default function POSView({
       id: `custom-${Date.now()}`,
       name: customItemName.trim() || 'Boshqa tovar',
       price: priceNum,
-      costPrice: priceNum * 0.85, // estimated
+      costPrice: priceNum * 0.85,
       unit: 'dona',
+      image: '📦',
       quantity: 1
     };
     setCart((prev) => [...prev, newItem]);
@@ -105,8 +125,42 @@ export default function POSView({
     setShowCustomModal(false);
   };
 
+  // Add USD item to cart
+  const handleAddUsdItem = (e) => {
+    e.preventDefault();
+    const usdVal = parseFloat(usdAmount);
+    if (!usdVal || isNaN(usdVal) || usdVal <= 0) return;
+
+    const somPrice = Math.round(usdVal * usdRate);
+    const itemName = usdItemTitle.trim() || `Optom tovar ($${usdVal})`;
+
+    const newItem = {
+      id: `usd-${Date.now()}`,
+      name: `${itemName} ($${usdVal})`,
+      price: somPrice,
+      costPrice: somPrice * 0.9,
+      unit: 'dona',
+      image: '💵',
+      quantity: 1
+    };
+
+    setCart((prev) => [...prev, newItem]);
+    setUsdAmount('');
+    setUsdItemTitle('');
+    setShowUsdModal(false);
+  };
+
+  const handleUpdateRate = () => {
+    const parsed = parseFloat(rateInput);
+    if (parsed && !isNaN(parsed) && parsed > 0) {
+      setUsdRate(parsed);
+      setIsEditingRate(false);
+    }
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartTotalUsd = (cartTotal / usdRate).toFixed(2);
 
   // Complete Checkout
   const handleCheckout = (paymentMethod) => {
@@ -134,7 +188,7 @@ export default function POSView({
       cart,
       total: cartTotal,
       paymentMethod,
-      customer: null
+      customer: activeCustomer || null
     });
     clearCart();
   };
@@ -146,7 +200,7 @@ export default function POSView({
         {/* LEFT COLUMN: Products Grid & Quick Buttons (7 or 8 cols) */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-4">
           
-          {/* Top Bar: Search, Scanner, Mic, Calculator, and Custom Item */}
+          {/* Top Bar: Search, Scanner, Mic, Calculator, USD, and Custom Item */}
           <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
             
             {/* Search Input */}
@@ -169,13 +223,13 @@ export default function POSView({
               )}
             </div>
 
-            {/* Quick Helper Tools (Scanner, Mic, Calculator) */}
+            {/* Quick Helper Tools */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
               
               {/* 1. Barcode Camera Scanner */}
               <button
                 onClick={onOpenBarcodeScanner}
-                title="Kamera orqali shtrix-kod skaneri"
+                title="Kamera orqali shtrix-kod & Nasiya kartasi skaneri"
                 className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
                 <Camera className="w-4 h-4 text-emerald-600" />
@@ -200,6 +254,16 @@ export default function POSView({
               >
                 <Calculator className="w-4 h-4 text-sky-600" />
                 <span className="hidden sm:inline">Kalkulyator</span>
+              </button>
+
+              {/* USD Currency Converter Widget */}
+              <button
+                onClick={() => setShowUsdModal(true)}
+                title="Valyuta konverteri (Un, yem, koʻmir narxlarini $ da hisoblash)"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+              >
+                <DollarSign className="w-4 h-4 text-teal-700" />
+                <span>${Number(usdRate).toLocaleString()}</span>
               </button>
 
               {/* Custom Item */}
@@ -232,7 +296,7 @@ export default function POSView({
             ))}
           </div>
 
-          {/* Products Grid */}
+          {/* Products Grid with Visual Images/Emojis */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {filteredProducts.map((product) => {
               const inCart = cart.find((item) => item.id === product.id);
@@ -242,23 +306,31 @@ export default function POSView({
                 <div
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  className={`bg-white rounded-2xl p-3 sm:p-4 border transition-all cursor-pointer select-none flex flex-col justify-between active:scale-[0.98] shadow-xs hover:shadow-md ${
+                  className={`group bg-white rounded-2xl p-3 sm:p-4 border transition-all cursor-pointer select-none flex flex-col justify-between active:scale-[0.98] shadow-xs hover:shadow-md ${
                     inCart
                       ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
                       : 'border-slate-200 hover:border-emerald-300'
                   }`}
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-1 mb-1">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                        {product.unit}
-                      </span>
-                      {isLow && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-700">
-                          Qoldiq: {product.stock}
+                    {/* Top Row: Product Icon Badge & Stock Unit */}
+                    <div className="flex items-start justify-between gap-1.5 mb-2">
+                      <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-2xl shadow-2xs group-hover:scale-110 transition shrink-0">
+                        {product.image || '📦'}
+                      </div>
+                      
+                      <div className="text-right">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                          {product.unit}
                         </span>
-                      )}
+                        {isLow && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700">
+                            Qoldiq: {product.stock}
+                          </span>
+                        )}
+                      </div>
                     </div>
+
                     <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2">
                       {product.name}
                     </h3>
@@ -326,6 +398,33 @@ export default function POSView({
               </div>
             </div>
 
+            {/* Attached / Scanned Customer Banner */}
+            {activeCustomer && (
+              <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span className="font-extrabold text-xs text-amber-950 truncate">
+                      {activeCustomer.name}
+                    </span>
+                    <span className="text-[10px] text-amber-600 font-black">
+                      {'★'.repeat(activeCustomer.rating || 5)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-800 mt-0.5">
+                    Qarzi: <strong>{formatMoney(activeCustomer.balance)}</strong> • Bonus: <strong>{formatMoney(activeCustomer.cashback || 0)}</strong>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedCustomerId('')}
+                  className="text-[10px] font-bold text-slate-500 hover:text-rose-600 px-1.5 py-0.5 rounded bg-amber-100 hover:bg-rose-100"
+                  title="Xaridorni ajratish"
+                >
+                  Ajratish ✕
+                </button>
+              </div>
+            )}
+
             {/* Cart Items List */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 divide-y divide-slate-100">
               {cart.length === 0 ? (
@@ -341,11 +440,18 @@ export default function POSView({
               ) : (
                 cart.map((item) => (
                   <div key={item.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0 pr-2">
-                      <h4 className="font-bold text-slate-900 text-sm truncate">{item.name}</h4>
-                      <p className="text-xs text-slate-500">
-                        {formatMoney(item.price)} × {item.quantity} {item.unit}
-                      </p>
+                    
+                    {/* Item Image & Title */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                      <span className="text-xl shrink-0 p-1 bg-slate-50 rounded-lg">
+                        {item.image || '📦'}
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 text-sm truncate">{item.name}</h4>
+                        <p className="text-xs text-slate-500">
+                          {formatMoney(item.price)} × {item.quantity} {item.unit}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Quantity controls */}
@@ -380,9 +486,14 @@ export default function POSView({
             {/* Bottom Checkout Panel */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
               
-              {/* Total Summary */}
+              {/* Total Summary with USD Equivalent */}
               <div className="flex items-baseline justify-between">
-                <span className="text-sm font-bold text-slate-600">Jami toʻlov:</span>
+                <div>
+                  <span className="text-sm font-bold text-slate-600">Jami toʻlov:</span>
+                  <span className="block text-[11px] font-black text-teal-700 mt-0.5">
+                    ≈ ${cartTotalUsd} USD (1$ = {Number(usdRate).toLocaleString()} soʻm)
+                  </span>
+                </div>
                 <span className="text-2xl font-black text-slate-900 tracking-tight">
                   {formatMoney(cartTotal)}
                 </span>
@@ -513,7 +624,7 @@ export default function POSView({
                     <span className="text-xs font-extrabold">Karta</span>
                   </button>
 
-                  {/* Debt / Nasiya (Highlighted with special amber warm color) */}
+                  {/* Debt / Nasiya */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => setPaymentStep('debt-confirm')}
@@ -532,7 +643,7 @@ export default function POSView({
 
       </div>
 
-      {/* Modal for adding unlisted custom product */}
+      {/* Modal 1: Adding unlisted custom product */}
       {showCustomModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
@@ -588,6 +699,147 @@ export default function POSView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: USD Currency Converter & Quick Add */}
+      {showUsdModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4 text-teal-700" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base m-0">
+                    Valyuta kursi & Konverter
+                  </h3>
+                  <p className="text-[11px] text-slate-500 m-0">
+                    Optom tovarlar (un, yem, koʻmir) uchun
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUsdModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Rate & Edit Mode */}
+            <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-teal-900">
+                  Hozirgi USD kursi:
+                </span>
+                {!isEditingRate ? (
+                  <button
+                    onClick={() => {
+                      setRateInput(usdRate.toString());
+                      setIsEditingRate(true);
+                    }}
+                    className="text-[11px] font-bold text-teal-700 underline"
+                  >
+                    Oʻzgartirish
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleUpdateRate}
+                    className="text-[11px] font-extrabold text-teal-900 bg-teal-200 px-2 py-0.5 rounded"
+                  >
+                    Saqlash ✓
+                  </button>
+                )}
+              </div>
+
+              {!isEditingRate ? (
+                <div className="text-lg font-black text-teal-950">
+                  1 USD = {Number(usdRate).toLocaleString()} soʻm
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs font-bold text-teal-800">1$ =</span>
+                  <input
+                    type="number"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="flex-1 px-2.5 py-1 text-sm font-bold bg-white border border-teal-300 rounded-lg text-slate-900 focus:outline-none"
+                    autoFocus
+                  />
+                  <span className="text-xs font-bold text-teal-800">soʻm</span>
+                </div>
+              )}
+            </div>
+
+            {/* Convert & Add to Cart Form */}
+            <form onSubmit={handleAddUsdItem} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tovar nomi (ixtiyoriy)
+                </label>
+                <input
+                  type="text"
+                  value={usdItemTitle}
+                  onChange={(e) => setUsdItemTitle(e.target.value)}
+                  placeholder="Masalan: 50kg Qozoq uni yoki Koʻmir"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Narxi dollarda ($) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-slate-400">$</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    required
+                    autoFocus
+                    value={usdAmount}
+                    onChange={(e) => setUsdAmount(e.target.value)}
+                    placeholder="Masalan: 20"
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-lg font-black text-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+
+              {/* Live converted So'm display */}
+              {usdAmount && !isNaN(usdAmount) && parseFloat(usdAmount) > 0 && (
+                <div className="p-3 bg-slate-900 text-white rounded-xl text-center space-y-0.5 animate-in fade-in">
+                  <span className="text-[10px] text-teal-300 font-bold uppercase tracking-wider block">
+                    Soʻmdagi qiymati:
+                  </span>
+                  <p className="text-xl font-black text-teal-400">
+                    {formatMoney(Math.round(parseFloat(usdAmount) * usdRate))}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUsdModal(false)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  disabled={!usdAmount || isNaN(usdAmount)}
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-extrabold text-xs rounded-xl shadow-md transition active:scale-95"
+                >
+                  + Savatga qoʻshish
+                </button>
+              </div>
+            </form>
+
           </div>
         </div>
       )}

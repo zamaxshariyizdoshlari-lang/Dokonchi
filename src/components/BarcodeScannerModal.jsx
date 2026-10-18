@@ -1,8 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Camera, X, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Camera, X, AlertCircle, CheckCircle2, User, Sparkles, CreditCard } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { formatMoney } from '../utils/storage';
 
-export default function BarcodeScannerModal({ isOpen, onClose, onDetected, products }) {
+export default function BarcodeScannerModal({
+  isOpen,
+  onClose,
+  onDetected,
+  products = [],
+  customers = [],
+  onCustomerDetected
+}) {
   const [errorMsg, setErrorMsg] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -38,15 +46,14 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
           { facingMode: 'environment' }, // Back camera preferred
           {
             fps: 10,
-            qrbox: { width: 250, height: 160 },
+            qrbox: { width: 250, height: 180 },
             aspectRatio: 1.33
           },
           (decodedText) => {
-            // Success
-            handleSuccessfulScan(decodedText);
+            handleSuccessfulScan(decodedText.trim());
           },
           (errorMessage) => {
-            // Continuous scanning log (ignore normal frame misses)
+            // Ignore normal frame misses
           }
         );
         setIsScanning(true);
@@ -70,17 +77,39 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
     setIsScanning(false);
   };
 
-  const handleSuccessfulScan = (barcode) => {
-    // Play a friendly beep sound using Web Audio API
-    playBeepSound();
+  const handleSuccessfulScan = (code) => {
+    // 1. Check if this is a Customer QR Card
+    if (code.startsWith('CUSTOMER:')) {
+      playCustomerChime();
+      const customerId = code.replace('CUSTOMER:', '').trim();
+      const matchedCustomer = customers.find((c) => c.id === customerId);
 
-    const matchedProduct = products.find((p) => p.barcode === barcode);
+      setScanResult({
+        type: 'customer',
+        code,
+        customer: matchedCustomer || null
+      });
+
+      if (matchedCustomer && onCustomerDetected) {
+        onCustomerDetected(matchedCustomer);
+        setTimeout(() => {
+          onClose();
+        }, 1200);
+      }
+      return;
+    }
+
+    // 2. Otherwise standard Product Barcode
+    playBeepSound();
+    const matchedProduct = products.find((p) => p.barcode === code);
+
     setScanResult({
-      barcode,
+      type: 'product',
+      code,
       product: matchedProduct || null
     });
 
-    if (matchedProduct) {
+    if (matchedProduct && onDetected) {
       onDetected(matchedProduct);
       setTimeout(() => {
         onClose();
@@ -94,7 +123,7 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.value = 880; // A5 note
+      osc.frequency.value = 880; // A5
       gain.gain.value = 0.15;
       osc.connect(gain);
       gain.connect(audioCtx.destination);
@@ -103,9 +132,41 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
         osc.stop();
         audioCtx.close();
       }, 150);
-    } catch {
-      // AudioContext might be blocked until user gesture
-    }
+    } catch {}
+  };
+
+  const playCustomerChime = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Dual pleasant chime
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc1.type = 'triangle';
+      osc2.type = 'sine';
+      osc1.frequency.value = 523.25; // C5
+      osc2.frequency.value = 659.25; // E5
+
+      gain.gain.value = 0.2;
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc1.start();
+      osc2.start();
+
+      setTimeout(() => {
+        osc1.frequency.value = 783.99; // G5
+        osc2.frequency.value = 1046.50; // C6
+      }, 120);
+
+      setTimeout(() => {
+        osc1.stop();
+        osc2.stop();
+        audioCtx.close();
+      }, 300);
+    } catch {}
   };
 
   if (!isOpen) return null;
@@ -120,9 +181,14 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
             <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
               <Camera className="w-4 h-4" />
             </div>
-            <h3 className="font-extrabold text-slate-900 text-base m-0">
-              Kamera Shtrix-kod Skaneri
-            </h3>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base m-0">
+                Shtrix-kod & QR Skaner
+              </h3>
+              <p className="text-[10px] text-slate-400 m-0">
+                Tovar shtrix-kodi yoki mijoz Nasiya kartasi
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -156,24 +222,50 @@ export default function BarcodeScannerModal({ isOpen, onClose, onDetected, produ
               <span>{errorMsg}</span>
             </div>
           ) : scanResult ? (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl">
-              <div className="flex items-center gap-1.5 font-bold mb-1">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Kod oʻqildi: {scanResult.barcode}</span>
+            scanResult.type === 'customer' ? (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 text-amber-950 text-xs rounded-2xl animate-in zoom-in-95">
+                <div className="flex items-center gap-1.5 font-black text-amber-900 mb-1">
+                  <CreditCard className="w-4 h-4 text-amber-600" />
+                  <span>Xaridor Nasiya Kartasi aniqlandi!</span>
+                </div>
+                {scanResult.customer ? (
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-black text-slate-900">
+                      👤 {scanResult.customer.name}
+                    </p>
+                    <p className="text-xs text-amber-800">
+                      Qarz balansi: <strong>{formatMoney(scanResult.customer.balance)}</strong> • Reyting: {'★'.repeat(scanResult.customer.rating || 5)}
+                    </p>
+                    <p className="text-[11px] text-emerald-700 font-bold">
+                      ✓ Kassaga muvaffaqiyatli biriktirildi!
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-amber-800 font-semibold">
+                    Karta ID topilmadi: {scanResult.code}
+                  </p>
+                )}
               </div>
-              {scanResult.product ? (
-                <p className="font-extrabold text-emerald-800">
-                  ✓ {scanResult.product.name} savatga qoʻshildi!
-                </p>
-              ) : (
-                <p className="text-amber-800 font-semibold">
-                  Bu shtrix-kodli tovar hali kiritilmagan.
-                </p>
-              )}
-            </div>
+            ) : (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl animate-in zoom-in-95">
+                <div className="flex items-center gap-1.5 font-bold mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Shtrix-kod oʻqildi: {scanResult.code}</span>
+                </div>
+                {scanResult.product ? (
+                  <p className="font-extrabold text-emerald-800">
+                    ✓ {scanResult.product.name} savatga qoʻshildi!
+                  </p>
+                ) : (
+                  <p className="text-amber-800 font-semibold">
+                    Bu shtrix-kodli tovar hali kiritilmagan.
+                  </p>
+                )}
+              </div>
+            )
           ) : (
             <p className="text-center text-xs text-slate-500 font-medium">
-              Shtrix-kodni qizil chiziq markaziga toʻgʻrilang
+              Shtrix-kod yoki Nasiya kartasini ramka ichiga toʻgʻrilang
             </p>
           )}
         </div>

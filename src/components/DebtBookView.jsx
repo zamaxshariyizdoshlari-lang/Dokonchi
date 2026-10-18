@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   BookOpen, Search, UserPlus, Phone, MapPin, Calendar, Clock,
   AlertTriangle, CheckCircle, Send, ArrowUpRight, ArrowDownRight,
-  DollarSign, FileText, Share2, Copy, Check
+  DollarSign, FileText, Share2, Copy, Check, CreditCard, QrCode
 } from 'lucide-react';
 import { formatMoney, generateDebtReminderText, getTelegramShareUrl } from '../utils/storage';
 
@@ -11,7 +11,9 @@ export default function DebtBookView({
   settings,
   onOpenCustomerModal,
   onRecordPayment,
-  onOpenPensionCalendar
+  onOpenPensionCalendar,
+  onOpenQRCard,
+  onOpenInstallments
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('hasDebt'); // 'all', 'hasDebt', 'overdue'
@@ -353,6 +355,26 @@ export default function DebtBookView({
                       <span>Qarz toʻlovini qabul qilish</span>
                     </button>
                   )}
+
+                  {/* Feature: Customer QR Nasiya Card */}
+                  <button
+                    onClick={() => onOpenQRCard && onOpenQRCard(activeCustomer)}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl transition active:scale-95 shadow-sm"
+                    title="Xaridorga QR-kodli Nasiya Kartasini chiqarish yoki Telegramga joʻnatish"
+                  >
+                    <CreditCard className="w-4 h-4 text-slate-950" />
+                    <span>🪪 QR Nasiya Kartasi</span>
+                  </button>
+
+                  {/* Feature: Installments (Rassrochka) Schedule */}
+                  <button
+                    onClick={() => onOpenInstallments && onOpenInstallments(activeCustomer)}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm rounded-xl transition active:scale-95 shadow-sm"
+                    title="Boʻlib toʻlash grafigi (Un, yem, koʻmir kabi katta xaridlar uchun)"
+                  >
+                    <Calendar className="w-4 h-4 text-purple-200" />
+                    <span>📅 Boʻlib toʻlash ({activeCustomer.installmentPlans?.length || 0})</span>
+                  </button>
 
                   {/* Send Telegram reminder button */}
                   {activeCustomer.balance > 0 && (

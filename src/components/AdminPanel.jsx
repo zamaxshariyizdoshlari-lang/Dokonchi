@@ -143,6 +143,7 @@ export default function AdminPanel({
         costPrice: parseFloat(newProd.costPrice) || 0,
         price: parseFloat(newProd.price),
         unit: newProd.unit,
+        image: newProd.image || editingProduct.image || '📦',
         stock: parseInt(newProd.stock) || 0,
         minStock: parseInt(newProd.minStock) || 5,
         barcode: newProd.barcode.trim() || editingProduct.barcode || `BAQ-${Date.now().toString().slice(-6)}`
@@ -156,6 +157,7 @@ export default function AdminPanel({
         costPrice: parseFloat(newProd.costPrice) || 0,
         price: parseFloat(newProd.price),
         unit: newProd.unit,
+        image: newProd.image || '📦',
         stock: parseInt(newProd.stock) || 0,
         minStock: parseInt(newProd.minStock) || 5,
         barcode: newProd.barcode.trim() || `BAQ-${Date.now().toString().slice(-6)}`
@@ -170,6 +172,7 @@ export default function AdminPanel({
       costPrice: '',
       price: '',
       unit: 'dona',
+      image: '📦',
       stock: '',
       minStock: 5,
       barcode: ''
@@ -184,6 +187,7 @@ export default function AdminPanel({
       costPrice: p.costPrice || '',
       price: p.price,
       unit: p.unit,
+      image: p.image || '📦',
       stock: p.stock,
       minStock: p.minStock || 5,
       barcode: p.barcode || ''
@@ -520,10 +524,17 @@ export default function AdminPanel({
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-4 sm:px-6">
-                          <div className="font-black text-slate-900 text-sm">{p.name}</div>
-                          <span className="text-[11px] font-mono text-slate-400">
-                            {p.barcode || 'Shtrix-kod yoʻq'}
-                          </span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
+                              {p.image || '📦'}
+                            </span>
+                            <div>
+                              <div className="font-black text-slate-900 text-sm">{p.name}</div>
+                              <span className="text-[11px] font-mono text-slate-400">
+                                {p.barcode || 'Shtrix-kod yoʻq'}
+                              </span>
+                            </div>
+                          </div>
                         </td>
 
                         <td className="py-3 px-3">
@@ -944,6 +955,39 @@ export default function AdminPanel({
                   placeholder="Masalan: Paxta yog'i 5L"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              {/* Product Icon / Emoji Picker */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tovar belgisi / Emojisi
+                </label>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-2xl border border-slate-200 shrink-0">
+                    {newProd.image || '📦'}
+                  </span>
+                  <input
+                    type="text"
+                    value={newProd.image || ''}
+                    onChange={(e) => setNewProd({ ...newProd, image: e.target.value })}
+                    placeholder="Belgi yoki emoji (masalan: 🌾)"
+                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1 p-1.5 bg-slate-50 rounded-xl border border-slate-200">
+                  {['🌾', '🫗', '🌻', '🧊', '🥖', '🍞', '🥩', '🥛', '🧈', '🧀', '🍬', '🍫', '☕', '🍵', '🥤', '💧', '🧼', '🧴', '🍎', '🥔', '🥚', '🧂', '🔥', '🕯', '🪥', '📦'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setNewProd({ ...newProd, image: emoji })}
+                      className={`w-7 h-7 rounded-lg text-base flex items-center justify-center transition active:scale-95 ${
+                        newProd.image === emoji ? 'bg-emerald-200 ring-2 ring-emerald-500' : 'hover:bg-slate-200'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

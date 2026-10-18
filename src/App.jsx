@@ -19,6 +19,8 @@ import TelegramBotModal from './components/TelegramBotModal';
 import VoiceAssistantModal from './components/VoiceAssistantModal';
 import CashierCalculator from './components/CashierCalculator';
 import PensionCalendarModal from './components/PensionCalendarModal';
+import CustomerQRCardModal from './components/CustomerQRCardModal';
+import InstallmentsModal from './components/InstallmentsModal';
 import {
   getStorageData,
   saveProducts,
@@ -70,6 +72,9 @@ export default function App() {
   const [isPensionCalendarOpen, setIsPensionCalendarOpen] = useState(false);
   const [isAdminPinOpen, setIsAdminPinOpen] = useState(false);
   const [barcodeLabelProduct, setBarcodeLabelProduct] = useState(null);
+  const [selectedPOSCustomer, setSelectedPOSCustomer] = useState(null);
+  const [qrCardCustomer, setQrCardCustomer] = useState(null);
+  const [installmentsCustomer, setInstallmentsCustomer] = useState(null);
 
   // PWA install prompt handler
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -412,6 +417,23 @@ export default function App() {
     setCustomers((prev) => [newCustomer, ...prev]);
   };
 
+  const handleUpdateCustomer = (updatedCustomer) => {
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
+    );
+    if (installmentsCustomer && installmentsCustomer.id === updatedCustomer.id) {
+      setInstallmentsCustomer(updatedCustomer);
+    }
+    if (selectedPOSCustomer && selectedPOSCustomer.id === updatedCustomer.id) {
+      setSelectedPOSCustomer(updatedCustomer);
+    }
+  };
+
+  const handleCustomerDetectedFromScanner = (customer) => {
+    setSelectedPOSCustomer(customer);
+    setActiveTab('pos');
+  };
+
   // Voice assistant recognized action
   const handleVoiceAction = (actions) => {
     setActiveTab('pos');
@@ -493,6 +515,8 @@ export default function App() {
             customers={customers}
             cart={cart}
             setCart={setCart}
+            selectedCustomerId={selectedPOSCustomer?.id || ''}
+            setSelectedCustomerId={(id) => setSelectedPOSCustomer(customers.find((c) => c.id === id) || null)}
             onCompleteSale={handleCompleteSale}
             onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
             onOpenBarcodeScanner={() => setIsBarcodeScannerOpen(true)}
@@ -509,6 +533,8 @@ export default function App() {
             onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
             onRecordPayment={handleRecordPayment}
             onOpenPensionCalendar={() => setIsPensionCalendarOpen(true)}
+            onOpenQRCard={(customer) => setQrCardCustomer(customer)}
+            onOpenInstallments={(customer) => setInstallmentsCustomer(customer)}
           />
         )}
 
@@ -620,14 +646,16 @@ export default function App() {
 
       {/* Modals for 8 Features */}
       
-      {/* 1. Barcode Scanner Camera Modal */}
+      {/* 1. Barcode & Customer QR Scanner Camera Modal */}
       <BarcodeScannerModal
         isOpen={isBarcodeScannerOpen}
         onClose={() => setIsBarcodeScannerOpen(false)}
         products={products}
+        customers={customers}
         onDetected={(product) => {
           handleAddToCart(product, 1);
         }}
+        onCustomerDetected={handleCustomerDetectedFromScanner}
       />
 
       {/* 2. Wholesale Supplier Order Modal */}
@@ -685,6 +713,24 @@ export default function App() {
         onClose={() => setReceiptData(null)}
         saleData={receiptData}
         settings={settings}
+      />
+
+      {/* Customer QR Nasiya Card Modal */}
+      <CustomerQRCardModal
+        isOpen={Boolean(qrCardCustomer)}
+        onClose={() => setQrCardCustomer(null)}
+        customer={qrCardCustomer}
+        settings={settings}
+      />
+
+      {/* Customer Installments (Rassrochka) Schedule Modal */}
+      <InstallmentsModal
+        isOpen={Boolean(installmentsCustomer)}
+        onClose={() => setInstallmentsCustomer(null)}
+        customer={installmentsCustomer}
+        settings={settings}
+        onUpdateCustomer={handleUpdateCustomer}
+        onRecordPayment={handleRecordPayment}
       />
     </div>
   );
