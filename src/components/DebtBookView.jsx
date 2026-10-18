@@ -304,12 +304,21 @@ export default function DebtBookView({
             <div className="bg-white rounded-3xl border border-slate-200 shadow-md overflow-hidden">
               
               {/* Header profile info */}
-              <div className="p-5 sm:p-6 bg-slate-900 text-white">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 text-white relative overflow-hidden">
+                <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-amber-400/10 pointer-events-none" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative">
                   <div>
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
                       Nasiya daftari varaqasi
                     </span>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs font-bold">
+                      <span className="text-amber-400 tracking-widest" title={`Ishonch darajasi: ${activeCustomer.rating || 4}/5`}>
+                        {'★'.repeat(Math.min(5, Math.max(0, Math.round(activeCustomer.rating || 4))))}
+                        <span className="text-white/25">{'★'.repeat(5 - Math.min(5, Math.max(0, Math.round(activeCustomer.rating || 4))))}</span>
+                      </span>
+                      <span className="text-emerald-300">Keshbek: {formatMoney(activeCustomer.cashback || 0)}</span>
+                    </div>
+
                     <h2 className="text-xl sm:text-2xl font-black text-white mt-1 m-0">
                       {activeCustomer.name}
                     </h2>

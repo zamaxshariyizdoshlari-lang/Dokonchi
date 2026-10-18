@@ -27,3 +27,135 @@
 button, input, select {
   touch-action: manipulation;
 }
+
+/* Prices and totals must not "jitter" when digits change */
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Elastic press feedback on cards/buttons */
+.tap-card {
+  transition: transform 120ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.tap-card:active {
+  transform: scale(0.96);
+}
+
+/* =========================================================
+   SUNLIGHT MODE: monochrome high-contrast (outdoor / glare)
+   Pure white, pure black, thick 2px borders, heavier type.
+   Applied via <html data-theme="sunlight">.
+   ========================================================= */
+html[data-theme="sunlight"] body {
+  background: #fff;
+  color: #000;
+}
+html[data-theme="sunlight"] #root * {
+  text-shadow: none;
+}
+/* surfaces -> white */
+html[data-theme="sunlight"] [class*="bg-slate-50"],
+html[data-theme="sunlight"] [class*="bg-slate-100"],
+html[data-theme="sunlight"] [class*="bg-amber-50"],
+html[data-theme="sunlight"] [class*="bg-emerald-50"],
+html[data-theme="sunlight"] [class*="bg-rose-50"],
+html[data-theme="sunlight"] [class*="bg-sky-50"],
+html[data-theme="sunlight"] [class*="bg-teal-50"],
+html[data-theme="sunlight"] [class*="bg-purple-50"],
+html[data-theme="sunlight"] .bg-white {
+  background-color: #fff;
+}
+/* all text -> black, heavier */
+html[data-theme="sunlight"] [class*="text-slate-"],
+html[data-theme="sunlight"] [class*="text-emerald-"],
+html[data-theme="sunlight"] [class*="text-amber-"],
+html[data-theme="sunlight"] [class*="text-rose-"],
+html[data-theme="sunlight"] [class*="text-sky-"],
+html[data-theme="sunlight"] [class*="text-teal-"],
+html[data-theme="sunlight"] [class*="text-purple-"] {
+  color: #000;
+}
+html[data-theme="sunlight"] #root {
+  font-weight: 700;
+}
+/* borders -> 2px black */
+html[data-theme="sunlight"] [class*="border-slate-"],
+html[data-theme="sunlight"] [class*="border-emerald-"],
+html[data-theme="sunlight"] [class*="border-amber-"],
+html[data-theme="sunlight"] [class*="border-rose-"],
+html[data-theme="sunlight"] [class*="border-sky-"],
+html[data-theme="sunlight"] [class*="border-teal-"],
+html[data-theme="sunlight"] [class*="border-purple-"] {
+  border-color: #000;
+}
+html[data-theme="sunlight"] .border,
+html[data-theme="sunlight"] .border-b,
+html[data-theme="sunlight"] .border-t {
+  border-width: 2px;
+}
+/* solid colour buttons -> black with white text */
+html[data-theme="sunlight"] button[class*="bg-emerald-6"],
+html[data-theme="sunlight"] button[class*="bg-emerald-5"],
+html[data-theme="sunlight"] button[class*="bg-emerald-7"],
+html[data-theme="sunlight"] button[class*="bg-sky-6"],
+html[data-theme="sunlight"] button[class*="bg-sky-5"],
+html[data-theme="sunlight"] button[class*="bg-purple-6"],
+html[data-theme="sunlight"] button[class*="bg-purple-5"],
+html[data-theme="sunlight"] button[class*="bg-rose-6"],
+html[data-theme="sunlight"] button[class*="bg-slate-8"],
+html[data-theme="sunlight"] button[class*="bg-slate-9"],
+html[data-theme="sunlight"] .bg-slate-900,
+html[data-theme="sunlight"] .bg-slate-950 {
+  background-color: #000;
+  color: #fff;
+  border: 2px solid #000;
+}
+html[data-theme="sunlight"] button[class*="bg-emerald-6"] *,
+html[data-theme="sunlight"] button[class*="bg-emerald-5"] *,
+html[data-theme="sunlight"] button[class*="bg-emerald-7"] *,
+html[data-theme="sunlight"] button[class*="bg-sky-6"] *,
+html[data-theme="sunlight"] button[class*="bg-sky-5"] *,
+html[data-theme="sunlight"] button[class*="bg-purple-6"] *,
+html[data-theme="sunlight"] button[class*="bg-purple-5"] *,
+html[data-theme="sunlight"] button[class*="bg-rose-6"] *,
+html[data-theme="sunlight"] button[class*="bg-slate-8"] *,
+html[data-theme="sunlight"] button[class*="bg-slate-9"] *,
+html[data-theme="sunlight"] .bg-slate-900 *,
+html[data-theme="sunlight"] .bg-slate-950 * {
+  color: #fff;
+}
+/* amber accent buttons -> white with thick black outline */
+html[data-theme="sunlight"] button[class*="bg-amber-4"],
+html[data-theme="sunlight"] button[class*="bg-amber-5"] {
+  background-color: #fff;
+  border: 3px solid #000;
+  color: #000;
+}
+html[data-theme="sunlight"] [class*="shadow"] {
+  box-shadow: none;
+}
+html[data-theme="sunlight"] .bg-black\/15,
+html[data-theme="sunlight"] .bg-black\/10 {
+  background-color: #fff;
+}
+html[data-theme="sunlight"] input,
+html[data-theme="sunlight"] select,
+html[data-theme="sunlight"] textarea {
+  border: 2px solid #000;
+  color: #000;
+  background: #fff;
+}
+html[data-theme="sunlight"] :focus-visible {
+  outline: 3px solid #000;
+  outline-offset: 2px;
+}
+
+/* dark-green solid surfaces (price chips, cash button) -> black in sunlight */
+html[data-theme="sunlight"] [class*="bg-emerald-8"]:not(header) {
+  background-color: #000;
+  color: #fff;
+  border-color: #000;
+}
+html[data-theme="sunlight"] [class*="bg-emerald-8"]:not(header) * {
+  color: #fff;
+}

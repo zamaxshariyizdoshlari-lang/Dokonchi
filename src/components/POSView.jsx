@@ -6,6 +6,7 @@ import {
   X, Check, User, PauseCircle, PlayCircle, Percent, Layers, Scale
 } from 'lucide-react';
 import { formatMoney } from '../utils/storage';
+import { playAddToCart } from '../utils/sound';
 
 export default function POSView({
   products = [],
@@ -110,6 +111,7 @@ export default function POSView({
 
   // Cart operations
   const addToCart = (product, quantity = 1) => {
+    playAddToCart();
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
@@ -316,9 +318,9 @@ export default function POSView({
               <button
                 onClick={onOpenBarcodeScanner}
                 title="Kamera orqali shtrix-kod & Nasiya kartasi skaneri"
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <Camera className="w-4 h-4 text-emerald-600" />
+                <Camera className="w-4 h-4 text-slate-600" />
                 <span className="hidden sm:inline">Skaner</span>
               </button>
 
@@ -326,9 +328,9 @@ export default function POSView({
               <button
                 onClick={onOpenVoiceAssistant}
                 title="Ovoz bilan tovar/qarz yozish"
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <Mic className="w-4 h-4 text-rose-600" />
+                <Mic className="w-4 h-4 text-slate-600" />
                 <span className="hidden sm:inline">Ovozli</span>
               </button>
 
@@ -336,9 +338,9 @@ export default function POSView({
               <button
                 onClick={onOpenCalculator}
                 title="Kassa Kalkulyatori"
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <Calculator className="w-4 h-4 text-sky-600" />
+                <Calculator className="w-4 h-4 text-slate-600" />
                 <span className="hidden sm:inline">Kalkulyator</span>
               </button>
 
@@ -346,9 +348,9 @@ export default function POSView({
               <button
                 onClick={onOpenReturnProduct}
                 title="Tovarni qaytarib olish (Vozvrat)"
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <RotateCcw className="w-4 h-4 text-rose-700" />
+                <RotateCcw className="w-4 h-4 text-slate-600" />
                 <span className="hidden sm:inline">Vozvrat</span>
               </button>
 
@@ -356,18 +358,18 @@ export default function POSView({
               <button
                 onClick={() => setShowUsdModal(true)}
                 title="Valyuta konverteri"
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-extrabold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <DollarSign className="w-4 h-4 text-teal-700" />
+                <DollarSign className="w-4 h-4 text-slate-600" />
                 <span>${Number(usdRate).toLocaleString()}</span>
               </button>
 
               {/* Custom Item */}
               <button
                 onClick={() => setShowCustomModal(true)}
-                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 min-h-[44px] bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition active:scale-95 whitespace-nowrap"
               >
-                <Plus className="w-4 h-4 text-amber-600 stroke-[3]" />
+                <Plus className="w-4 h-4 text-slate-600 stroke-[3]" />
                 <span className="hidden xl:inline">Roʻyxatda yoʻq</span>
               </button>
 
@@ -402,25 +404,31 @@ export default function POSView({
                 <div
                   key={product.id}
                   onClick={() => addToCart(product, 1)}
-                  className={`group bg-white rounded-2xl p-3 sm:p-4 border transition-all cursor-pointer select-none flex flex-col justify-between active:scale-[0.98] shadow-xs hover:shadow-md ${
+                  className={`tap-card group relative overflow-hidden bg-white rounded-2xl p-3 sm:p-4 border cursor-pointer select-none flex flex-col justify-between shadow-sm hover:shadow-md ${
                     inCart
-                      ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20'
-                      : 'border-slate-200 hover:border-emerald-300'
+                      ? 'border-emerald-600 ring-2 ring-emerald-600/20'
+                      : 'border-slate-200 hover:border-emerald-400'
                   }`}
                 >
+                  {/* Stock level bar on top edge */}
+                  <div className="absolute inset-x-0 top-0 h-1 bg-slate-100">
+                    <div
+                      className={`h-full ${isLow ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.max(4, Math.min(100, (product.stock / Math.max(1, (product.minStock || 5) * 4)) * 100))}%` }}
+                    />
+                  </div>
+
                   <div>
-                    {/* Top Row: Product Icon Badge & Stock Unit */}
-                    <div className="flex items-start justify-between gap-1.5 mb-2">
-                      <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-2xl shadow-2xs group-hover:scale-110 transition shrink-0">
+                    <div className="flex items-start justify-between gap-1.5 mb-2 pt-1">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 shadow-inner flex items-center justify-center text-2xl shrink-0">
                         {product.image || '📦'}
                       </div>
-                      
                       <div className="text-right">
                         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                           {product.unit}
                         </span>
                         {isLow && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700">
+                          <span className="inline-flex items-center px-1.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-700">
                             Qoldiq: {product.stock}
                           </span>
                         )}
@@ -432,19 +440,16 @@ export default function POSView({
                     </h3>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-emerald-700 font-extrabold text-sm sm:text-base">
-                        {formatMoney(product.price)}
-                      </p>
-                    </div>
-
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="bg-emerald-800 text-white font-black text-xs sm:text-sm rounded-xl px-2 py-1 m-0 tracking-tight whitespace-nowrap">
+                      {formatMoney(product.price)}
+                    </p>
                     {inCart ? (
-                      <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
+                      <span className="min-w-8 h-8 px-1.5 rounded-xl bg-slate-900 text-white font-extrabold text-sm flex items-center justify-center">
                         {inCart.quantity}
                       </span>
                     ) : (
-                      <span className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-emerald-600 group-hover:text-white font-bold text-xs flex items-center justify-center transition">
+                      <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-emerald-700 group-hover:text-white font-bold flex items-center justify-center transition">
                         +
                       </span>
                     )}
@@ -577,18 +582,18 @@ export default function POSView({
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                       <button
                         onClick={() => updateQuantity(item.id, -1)}
-                        className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-rose-50 hover:text-rose-600 active:scale-95 font-bold text-sm"
+                        className="w-11 h-11 rounded-xl bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-rose-50 hover:text-rose-600 active:scale-95 font-bold text-sm"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-4 h-4" />
                       </button>
-                      <span className="w-8 text-center font-extrabold text-xs text-slate-800">
+                      <span className="min-w-8 text-center font-extrabold text-sm text-slate-800">
                         {item.quantity}
                       </span>
                       <button
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 active:scale-95 font-bold text-sm"
+                        className="w-11 h-11 rounded-xl bg-white shadow-xs flex items-center justify-center text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 active:scale-95 font-bold text-sm"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -618,7 +623,7 @@ export default function POSView({
                         key={pct}
                         type="button"
                         onClick={() => setDiscountPercent(pct)}
-                        className={`px-2 py-0.5 rounded-lg font-bold text-[11px] transition ${
+                        className={`px-3 min-h-[36px] rounded-lg font-bold text-xs transition ${
                           discountPercent === pct
                             ? 'bg-rose-600 text-white shadow-xs'
                             : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
@@ -640,11 +645,11 @@ export default function POSView({
                       {formatMoney(grossTotal)} (-{formatMoney(discountAmount)})
                     </span>
                   )}
-                  <span className="block text-[10px] font-black text-teal-700">
+                  <span className="inline-block text-xs font-black text-slate-600 bg-slate-200 rounded-full px-2 py-0.5 mt-1">
                     ≈ ${cartTotalUsd} USD
                   </span>
                 </div>
-                <span className="text-2xl font-black text-slate-900 tracking-tight">
+                <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
                   {formatMoney(netTotal)}
                 </span>
               </div>
@@ -746,7 +751,7 @@ export default function POSView({
 
               {/* Main 4 Action Buttons: Naqd, Karta, Nasiya, and Aralash */}
               {paymentStep !== 'debt-confirm' && (
-                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   
                   {/* Cash */}
                   <button
@@ -758,41 +763,41 @@ export default function POSView({
                         handleCheckout('cash');
                       }
                     }}
-                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-emerald-600/20"
+                    className="col-span-2 flex items-center justify-center gap-3 min-h-[64px] rounded-2xl bg-emerald-800 hover:bg-emerald-900 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-lg border-b-4 border-emerald-950"
                   >
-                    <Banknote className="w-4 h-4 mb-1" />
-                    <span className="text-[11px] font-extrabold">Naqd</span>
+                    <Banknote className="w-7 h-7" />
+                    <span className="text-lg font-black">Naqd toʻlov</span>
                   </button>
 
                   {/* Card */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => handleCheckout('card')}
-                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-sky-600/20"
+                    className="flex items-center justify-center gap-2 min-h-[56px] rounded-2xl bg-slate-900 hover:bg-slate-800 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md border-b-4 border-slate-950"
                   >
-                    <CreditCard className="w-4 h-4 mb-1" />
-                    <span className="text-[11px] font-extrabold">Karta</span>
+                    <CreditCard className="w-5 h-5" />
+                    <span className="text-base font-extrabold">Karta</span>
                   </button>
 
                   {/* Debt / Nasiya */}
                   <button
                     disabled={cart.length === 0}
                     onClick={() => setPaymentStep('debt-confirm')}
-                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-amber-500/25"
+                    className="flex items-center justify-center gap-2 min-h-[56px] rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md border-b-4 border-amber-600"
                   >
-                    <BookOpen className="w-4 h-4 mb-1" />
-                    <span className="text-[11px] font-extrabold">Nasiya</span>
+                    <BookOpen className="w-5 h-5" />
+                    <span className="text-base font-extrabold">Nasiya</span>
                   </button>
 
                   {/* Aralash to'lov (Split) */}
                   <button
                     disabled={cart.length === 0}
                     onClick={onOpenSplitPayment}
-                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-purple-600/20"
+                    className="col-span-2 flex items-center justify-center gap-2 min-h-[48px] rounded-2xl bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
                     title="Aralash toʻlov (Naqd + Karta + Qarz)"
                   >
-                    <Layers className="w-4 h-4 mb-1" />
-                    <span className="text-[11px] font-extrabold">Aralash</span>
+                    <Layers className="w-5 h-5" />
+                    <span className="text-sm font-extrabold">Aralash toʻlov</span>
                   </button>
 
                 </div>

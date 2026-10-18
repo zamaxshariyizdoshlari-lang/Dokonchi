@@ -36,6 +36,7 @@ import {
   saveWriteOffs,
   saveSettings
 } from './utils/storage';
+import { playScan, playCustomerFound, playChaChing } from './utils/sound';
 
 export default function App() {
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -111,6 +112,11 @@ export default function App() {
       alert("Ilovani telefonga o'rnatish uchun:\nBrauzeringizning uchta nuqta (⋮) menyusini bosing va 'Bosh ekranga qo'shish' yoki 'O'rnatish'ni tanlang!");
     }
   };
+
+  // Reflect theme on <html> so CSS (sunlight high-contrast) can target it
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Toggle Theme
   const handleToggleTheme = () => {
@@ -513,6 +519,8 @@ export default function App() {
 
     setTransactions((prev) => [newTx, ...prev]);
 
+    playChaChing();
+
     // Trigger Payment Receipt Modal with Telegram share!
     setPaymentReceiptData({
       customerName: paidCustName,
@@ -621,6 +629,7 @@ export default function App() {
   };
 
   const handleCustomerDetectedFromScanner = (customer) => {
+    playCustomerFound();
     setSelectedPOSCustomer(customer);
     setActiveTab('pos');
   };
@@ -663,7 +672,7 @@ export default function App() {
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
       theme === 'sunlight'
-        ? 'bg-amber-100 text-slate-950 font-bold'
+        ? 'bg-white text-black font-bold'
         : theme === 'dark'
         ? 'bg-slate-900 text-slate-100'
         : 'bg-slate-100 text-slate-900'
@@ -851,6 +860,7 @@ export default function App() {
         products={products}
         customers={customers}
         onDetected={(product) => {
+          playScan();
           handleAddToCart(product, 1);
         }}
         onCustomerDetected={handleCustomerDetectedFromScanner}
